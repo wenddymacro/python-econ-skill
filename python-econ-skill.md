@@ -25,13 +25,13 @@ Best practices for macroeconomic modeling (DSGE/HANK), causal inference, and dat
 | Economics toolkit | `quantecon` |
 | HANK / sequence space | `sequence_jacobian` (SSJ) |
 | Heterogeneous agents | `HARK` |
+| **Linear models with FE** | **`pyfixest`** (`pip install pyfixest`) |
 | **DID / DD / DDD** | **`diff-diff`** (`pip install diff-diff`) |
-| **IV / 2SLS / GMM** | **`linearmodels`** |
+| **IV / 2SLS / GMM** | **`linearmodels`** (or `pyfixest` for panel IV with FE) |
 | **RD / RDD / RKD** | **`rdrobust`**, `rddensity`, `rdlocrand` |
 | **Synthetic Control** | **`pysynth`**, `synth_control`, `sdid` |
 | **Matching** | **`causalml`**, `pymatch`, `econml` |
 | **Causal ML / DML** | **`econml`**, `dowhy` |
-| Classic econometrics | `statsmodels` |
 | Data manipulation | `pandas`, `polars` (large datasets) |
 | Visualization | `matplotlib`, `seaborn` |
 
@@ -142,6 +142,56 @@ def iterate_distribution(policy_idx, trans_mat, dist0, T=500):
         dist = dist_new
     return dist
 ```
+
+---
+
+## Linear Models with Fixed Effects (pyfixest)
+
+**Rule: For any OLS/Poisson/Logit with fixed effects, use `pyfixest`. It mirrors R's `fixest` syntax.**
+
+```python
+import pyfixest as pf
+
+# OLS with unit + time FE, cluster-robust SEs
+fit = pf.feols("y ~ treat_post | unit + year",
+               data=df, vcov={"CRV1": "id"})
+fit.summary()
+
+# Multiple high-dimensional FE (Frisch-Waugh absorbed)
+fit = pf.feols("y ~ x1 + x2 | unit + year + industry",
+               data=df, vcov={"CRV1": "id"})
+
+# Wild cluster bootstrap (few clusters, <50)
+fit = pf.feols("y ~ treat_post | unit + year",
+               data=df, vcov={"CRV1": "id"})
+fit.wildboottest(param="treat_post", B=9999, seed=42)
+
+# Event study via i() syntax
+fit = pf.feols("y ~ i(rel_year, ref=-1) | unit + year",
+               data=df, vcov={"CRV1": "id"})
+pf.iplot(fit)  # event study plot
+
+# Poisson (count / log-linear) with FE
+fit_pois = pf.fepois("y ~ treat_post | unit + year",
+                     data=df, vcov={"CRV1": "id"})
+
+# Access results
+fit.coef()           # coefficient estimates
+fit.se()             # standard errors
+fit.pvalue()         # p-values
+fit.confint()        # confidence intervals
+fit._N               # number of observations
+```
+
+### pyfixest vs statsmodels
+
+| Use case | Use |
+|----------|-----|
+| OLS / WLS with any FE | `pyfixest` |
+| Poisson / logit with FE | `pyfixest` |
+| Wild bootstrap | `pyfixest` |
+| Time-series ARIMA, VAR | `statsmodels` |
+| MLE / GLM without FE | `statsmodels` |
 
 ---
 
@@ -258,13 +308,25 @@ Run **six progressive specifications** (M1–M6):
 Coefficient stability across M1→M6 supports identification. Report **Oster (2019) δ\*** (selection bias ratio); |δ*| > 1 = basic robustness, |δ*| > 2 = strong.
 
 ```python
-from diff_diff import TWFE
+import pyfixest as pf
 
-for spec in specs:
-    res = TWFE().fit(data, outcome='y', treatment='treat_post',
-                     absorb=spec['absorb'], covariates=spec['covariates'],
-                     cluster='id')
-    res.print_summary()
+# M1: unit FE only
+pf.feols("y ~ treat_post | unit", data=df, vcov={"CRV1": "id"}).summary()
+
+# M2: unit + time FE
+pf.feols("y ~ treat_post | unit + year", data=df, vcov={"CRV1": "id"}).summary()
+
+# M3–M4: add covariates and baseline×trend
+pf.feols("y ~ treat_post + x1 + x2 + baseline:year | unit + year",
+         data=df, vcov={"CRV1": "id"}).summary()
+
+# M5: + regional FE
+pf.feols("y ~ treat_post + x1 + x2 + baseline:year | unit + year + region",
+         data=df, vcov={"CRV1": "id"}).summary()
+
+# M6: + industry×year FE
+pf.feols("y ~ treat_post + x1 + x2 + baseline:year | unit + industry^year",
+         data=df, vcov={"CRV1": "id"}).summary()
 ```
 
 ### Step 4 — Parallel Trends: Event Study Plots
@@ -751,9 +813,9 @@ weights = ebal(X_control=X[treatment==0],
                moments=1)   # 1=means, 2=means+variances
 
 # Use weights in weighted regression
-import statsmodels.formula.api as smf
-w_full = np.where(treatment==1, 1.0, weights)
-res = smf.wls('y ~ treated', data=df, weights=w_full).fit()
+import pyfixest as pf
+df["w"] = np.where(treatment == 1, 1.0, weights)
+res = pf.feols("y ~ treated", data=df, weights="w", vcov={"CRV1": "id"})
 ```
 
 ---
@@ -818,9 +880,10 @@ driv.fit(Y, T, Z=Z_instrument, X=X_het, W=X_controls)
 
 | Setting | Method | Key Library |
 |---------|--------|------------|
-| Panel + policy shock, parallel trends | DID / TWFE / CS / SA | `diff-diff` |
+| OLS / WLS / Poisson with FE | Linear models | **`pyfixest`** |
+| Panel + policy shock, parallel trends | DID / TWFE / CS / SA | `diff-diff` + `pyfixest` |
 | Staggered adoption | CS, SA, BJS | `diff-diff` |
-| Exogenous instrument | 2SLS / GMM / LIML | `linearmodels` |
+| Exogenous instrument | 2SLS / GMM / LIML | `linearmodels` (or `pyfixest` for panel IV) |
 | Weak instrument concern | AR confidence set, LIML | `linearmodels` |
 | Cutoff assignment rule | Sharp / Fuzzy RD | `rdrobust` |
 | Slope discontinuity | RKD | `rdrobust` (deriv=1) |
