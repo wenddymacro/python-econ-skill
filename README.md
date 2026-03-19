@@ -1,11 +1,6 @@
 # python-econ-skill
 Awesome AI for DSGE and Causal Inference etc.
 
----
-name: python-econ-computing
-description: Use when writing Python code for DSGE models, HANK models, numerical economic computation, causal inference, or quantitative economic data analysis
----
-
 # Python Economic Numerical Computing
 - Author：Wenli Xu
 - Email： wlxu@cityu.edu.mo
@@ -28,14 +23,12 @@ Best practices for macroeconomic modeling (DSGE/HANK), causal inference, and dat
 | Economics toolkit | `quantecon` |
 | HANK / sequence space | `sequence_jacobian` (SSJ) |
 | Heterogeneous agents | `HARK` |
+| **Linear models with FE** | **`pyfixest`** (`pip install pyfixest`) |
 | **DID / DD / DDD** | **`diff-diff`** (`pip install diff-diff`) |
-| **IV / 2SLS / GMM** | **`linearmodels`** |
+| **IV / 2SLS / GMM** | **`linearmodels`** (or `pyfixest` for panel IV with FE) |
 | **RD / RDD / RKD** | **`rdrobust`**, `rddensity`, `rdlocrand` |
 | **Synthetic Control** | **`pysynth`**, `synth_control`, `sdid` |
 | **Matching** | **`causalml`**, `pymatch`, `econml` |
 | **Causal ML / DML** | **`econml`**, `dowhy` |
-| Classic econometrics | `statsmodels` |
 | Data manipulation | `pandas`, `polars` (large datasets) |
 | Visualization | `matplotlib`, `seaborn` |
-
----
